@@ -1,0 +1,94 @@
+function sawtooth_sweep_jamming_main()
+% 锯齿波扫频干扰信号生成函数
+
+% 参数设置 
+params.Uj = 0.8;          % 干扰幅度
+params.fj = 1000;       % 中心频率 
+params.k = 1.5;         % 扫频斜率 
+params.noise_bw = 4000;  % 噪声带宽 
+params.Un = 0.2;        % 窄带干扰信号的包络幅度
+params.phi = 0;         % 初始相位
+fs = 16000;             % 采样频率 
+
+% 扫频周期和总时长
+sweep_bandwidth = 1500; % 扫频宽度
+params.Tf = sweep_bandwidth / params.k; % 单个扫频周期 
+duration = 1000;
+
+% 1. 生成时间轴
+t = 0:1/fs:(duration - 1/fs);
+N = length(t);
+
+% 2. 生成基带带限噪声
+base_noise = randn(1, N);
+[b, a] = butter(6, params.noise_bw/(fs/2), 'low');
+base_noise_filtered = filtfilt(b, a, base_noise);
+
+% 3. 生成正确的周期性扫频相位
+time_in_cycle = mod(t, params.Tf); 
+start_freq = 250; % 扫频起始频率
+instantaneous_frequency = start_freq + params.k * time_in_cycle;
+theta_t = 2 * pi * cumsum(instantaneous_frequency) / fs; % 通过积分得到相位
+
+% 4. 合成最终信号 (模型: 噪声调制扫频载波)
+signal = params.Uj * (1 + params.Un * base_noise_filtered) .* cos(theta_t + params.phi);
+
+% 5. 绘制图22：波形和功率谱
+figure('Name','图22 锯齿波扫频信号波形与功率谱图','NumberTitle','off');
+
+% 上半部分: 时域波形 (显示前2ms)
+subplot(2,1,1);
+display_duration_s = 1000;
+idx_display = find(t < display_duration_s);
+plot(t(idx_display), signal(idx_display));
+xlabel(['时间 (s)']);
+ylabel('幅度 (V)');
+title('锯齿波扫频干扰信号时域波形');
+grid on;
+xlim([0 display_duration_s]);
+
+% 下半部分: 功率谱
+subplot(2,1,2);
+[pxx, f] = pwelch(signal, hanning(4096), 2048, 4096, fs);
+pxx_db = 10*log10(pxx);
+
+plot(f, pxx_db);
+xlabel('频率 (Hz)');
+ylabel('功率谱密度 (dB/Hz)');
+title('锯齿波扫频干扰信号功率谱');
+grid on;
+xlim([0 2000]);
+
+% 6. 绘制图23：时频分析
+figure('Name','图23 锯齿波扫频信号时频分析','NumberTitle','off');
+window_size = 1024; % 窗口大小，决定频率分辨率
+overlap = 512;      % 重叠大小，决定时间分辨率
+nfft = 2048;        % FFT点数
+spectrogram(signal, hann(window_size), overlap, nfft, fs, 'yaxis')
+title('锯齿波扫频信号时频分析');
+xlabel('时间 (s)'); % spectrogram默认单位是秒
+ylabel('频率 (Hz)');
+ylim([0 2000]); 
+xlim([0 1000]);
+c = colorbar;
+ylabel(c, '功率谱密度 (dB/Hz)');
+caxis([-150 -20]);
+
+% 7. 数据保存
+save_data = struct();
+save_data.signal = signal;                  % 最终生成的干扰信号
+save_data.t = t;                            % 时间向量（单位：秒）
+save_data.instantaneous_frequency = instantaneous_frequency;  % 瞬时频率
+save_data.base_noise_filtered = base_noise_filtered;          % 滤波后的噪声信号
+save_data.params = params;                  % 所有输入参数（方便复现）
+save_data.fs = fs;                          % 采样频率
+save_data.duration = duration;              % 信号总时长
+
+% 生成带时间戳的唯一文件名
+timestamp = datestr(now, 'yyyy-mm-dd_HH-MM-SS');  
+filename = ['sawtooth_jamming_data_', timestamp, '.mat'];
+
+% 保存数据到MAT文件
+save(filename, 'save_data');
+fprintf('数据已保存为：%s\n', filename);
+fprintf('保存路径：%s\n', pwd);  % 显示当前保存路径
