@@ -1,6 +1,7 @@
-function [t, signal, freq, psd] = linear_chirp_jamming_final_main(A, f0, k, phi, T_total, Fs, f_end)
+function [t, signal, freq, psd] = linear_chirp_jamming_main(A, f0, k, phi, T_total, Fs, f_end)
 % 线性扫频干扰信号生成函数
-% 输入参数：
+
+% 其中输入参数：
 %   A       - 信号幅度
 %   f0      - 初始频率 (Hz)
 %   k       - 调频系数 (Hz/s)
@@ -14,20 +15,18 @@ function [t, signal, freq, psd] = linear_chirp_jamming_final_main(A, f0, k, phi,
 %   psd     - 功率谱密度
 
 % 调用示例：
-A = 1;               % 信号幅度（通常设为1，可根据需要调整）
-f0 = 250;           % 初始频率：10MHz（扫频起点）
-f_end = 1750;        % 终止频率：30MHz（扫频范围终点
-k = 1.5;            % 调频系数：1e10 Hz/s（即10KHz/μs，决定扫频速度）
-phi = 0;             % 初始相位：0弧度（可根据需要调整）
-Fs = 16000;           % 采样频率：80MHz（需大于2倍最高频率，满足奈奎斯特准则）
-T_total = 1000;         % 总时长：3秒（3个周期）
-T_period = (f_end - f0) / k; %一个周期的时间（1e-3）
-%按理来说应该有3个锯齿状
+A = 1;               % 信号幅度
+f0 = 250;            % 初始频率
+f_end = 1750;        % 终止频率
+k = 1.5;             % 调频系数
+phi = 0;             % 初始相位
+Fs = 16000;          % 采样频率
+T_total = 1000;      % 总时长
+T_period = (f_end - f0) / k; %一个周期的时间
 
 
-% 生成时间向量，时间序列，用于表示信号的时间轴
-t = 0:1/Fs:(T_total - 1/Fs);%生成等差数列的语法，格式为起始值:步长:终止值
-%保证 “总时长≈T” 的同时，确保采样点数恰好为Fs×T
+% 生成时间向量，用于表示信号的时间轴
+t = 0:1/Fs:(T_total - 1/Fs);
 
 %计算周期性瞬时频率
     instantaneous_frequency = zeros(size(t));%创建一个t长度相同的全零向量，存储每个时刻的瞬时频率
@@ -40,10 +39,9 @@ t = 0:1/Fs:(T_total - 1/Fs);%生成等差数列的语法，格式为起始值:�
         instantaneous_frequency(i) = ft;
     end
 
-% 根据文档中式(1-104)计算线性扫频信号
-% j_t = A*exp(1j*(2*pi*f0*t + pi*k*t.^2 + phi)); 是复信号，要从复信号中提取出实部
-%phase = 2*pi*f0*t + pi*k*t.^2 + phi;%信号相位随时间的变化规律  
-phase = 2*pi * cumsum(instantaneous_frequency) / Fs + phi;
+% 计算线性扫频信号
+% j_t = A*exp(1j*(2*pi*f0*t + pi*k*t.^2 + phi)); 
+phase = 2*pi * cumsum(instantaneous_frequency) / Fs + phi;%离散积分得到相位
 signal = A * real(exp(1i*phase));  % 取实部作为实际信号
 
 % 计算归一化幅度谱
@@ -61,7 +59,7 @@ magnitude_spectrum = abs(fft_signal(1:N/2));%注意这里取的是幅度
 % 对幅度谱进行归一化处理
 normalized_magnitude = magnitude_spectrum / max(magnitude_spectrum);
 
-% 功率谱密度
+% 功率谱密度（保留）
 % psd = abs(fft_signal).^2 / (Fs * sum(window.^2));
 % psd_dB = 10*log10(psd);
 % psd_dB = psd_dB(1:N/2);
@@ -98,7 +96,6 @@ xlim([0, 2000]);
 grid on;
 
 % 保存数据
-% 数据保存部分
 % 创建保存数据的结构体
 save_data.t = t;
 save_data.signal = signal;
@@ -112,10 +109,6 @@ save_data.parameters.phi = phi;
 save_data.parameters.T_total = T_total;
 save_data.parameters.Fs = Fs;
 save_data.parameters.f_end = f_end;
-
-% 生成带时间戳的文件名，确保唯一性
-timestamp = datestr(now, 'yyyy-mm-dd_HH-MM-SS');
-filename = ['chirp_data_', timestamp, '.mat'];
 
 % 生成带时间戳的文件名，确保唯一性
 timestamp = datestr(now, 'yyyy-mm-dd_HH-MM-SS');
